@@ -2,117 +2,130 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 function App() {
-  const [titulo, setTitulo] = useState('');
-  const [contenido, setContenido] = useState('');
-  const [notas, setNotas] = useState([]);
-  
-  // Estado para saber si estamos editando (guarda el ID de la nota)
-  const [idEditar, setIdEditar] = useState(null);
+  // --- STATES ---
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [notes, setNotes] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState('all'); // 'all', 'pending', 'completed'
+  const [editingId, setEditingId] = useState(null);
 
-  const obtenerNotas = async () => {
-    const response = await axios.get('http://localhost:3001/api/notes');
-    setNotas(response.data);
+  // --- FETCH DATA ---
+  const fetchNotes = async () => {
+    try {
+      const response = await axios.get('http://localhost:3001/api/notes');
+      setNotes(response.data);
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+    }
   };
 
-  useEffect(() => { obtenerNotas(); }, []);
+  useEffect(() => { fetchNotes(); }, []);
 
-  // FUNCIÓN : Prepara el formulario para editar
-  const activarEdicion = (nota) => {
-    setTitulo(nota.title);       // Llena el título
-    setContenido(nota.content);  // Llena el contenido
-    setIdEditar(nota.id);        // Guarda el ID de la nota a editar
+  // --- HANDLERS ---
+  const handleEditClick = (note) => {
+    setTitle(note.title);
+    setContent(note.content);
+    setEditingId(note.id);
   };
 
-  // FUNCIÓN : Maneja el submit del formulario (tanto para crear como para editar)
-  const manejarSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!title.trim() || !content.trim()) {
+      return alert('⚠️ Title and Content are required.');
+    }
+
     try {
-
-      // VALIDACIÓN BÁSICA 
-
-      if (!titulo.trim() || !contenido.trim()) {
-        alert('⚠️ ¡Che! El título y el contenido son obligatorios.');
-        return;
-      }
-  
-      if (idEditar) {
-        await axios.put(`http://localhost:3001/api/notes/${idEditar}`, {
-          title: titulo,
-          content: contenido
+      if (editingId) {
+        // Update existing note
+        await axios.put(`http://localhost:3001/api/notes/${editingId}`, {
+          title,
+          content
         });
-        alert('¡Nota actualizada! 🔄');
-        setIdEditar(null); // Volvemos al modo "Crear"
+        alert('Note updated! 🔄');
+        setEditingId(null);
       } else {
-
-        // Crear nueva nota actualizada
+        // Create new note
         await axios.post('http://localhost:3001/api/notes', {
-          title: titulo,
-          content: contenido
+          title,
+          content
         });
-        alert('¡Nota creada! ✅');
+        alert('Note created! ✅');
       }
 
-      // Limpieza y refresh
-      setTitulo('');
-      setContenido('');
-      obtenerNotas();
+      // Reset form & refresh
+      setTitle('');
+      setContent('');
+      fetchNotes();
 
     } catch (error) {
       console.error(error);
-      alert('Hubo un error ❌');
+      alert('Error saving note ❌');
     }
   };
 
-  const borrarNota = async (id) => {
-    if (!window.confirm('¿Borrar?')) return;
-    await axios.delete(`http://localhost:3001/api/notes/${id}`);
-    obtenerNotas();
-  };
-
-  // Función para marcar/desmarcar tarea
-  const toggleCompletado = async (nota) => {
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this note?')) return;
     try {
-      // Enviamos el estado opuesto al que tiene actualmente (!nota.isCompleted)
-      await axios.put(`http://localhost:3001/api/notes/${nota.id}`, {
-        title: nota.title,
-        content: nota.content,
-        isCompleted: !nota.isCompleted 
-      });
-      // Recargamos la lista
-      obtenerNotas();
+      await axios.delete(`http://localhost:3001/api/notes/${id}`);
+      fetchNotes();
     } catch (error) {
-      alert('Error al actualizar estado ❌');
+      console.error(error);
     }
   };
 
+  const toggleCompleted = async (note) => {
+    try {
+      await axios.put(`http://localhost:3001/api/notes/${note.id}`, {
+        title: note.title,
+        content: note.content,
+        isCompleted: !note.isCompleted 
+      });
+      fetchNotes();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // --- FILTER LOGIC ---
+  const filteredNotes = notes.filter((note) => {
+    const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (filter === 'pending') return matchesSearch && !note.isCompleted;
+    if (filter === 'completed') return matchesSearch && note.isCompleted;
+    
+    return matchesSearch;
+  });
+
+  // --- RENDER ---
   return (
     <div style={{ padding: '50px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>📝 Mis Notas </h1>
+      <h1>📝 My Notes App</h1>
       
-      {/* FORMULARIO */}
-      <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#726a6aff', borderRadius: '10px', maxWidth: '400px' , width: '100%'}}>
-        <h2>{idEditar ? '🔄 Editando Nota' : '✨ Nueva Nota'}</h2>
+      {/* FORM SECTION */}
+      <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#726a6aff', borderRadius: '10px', maxWidth: '400px', width: '100%', margin: '0 0 40px 0' }}>
+        <h2>{editingId ? '🔄 Edit Note' : '✨ New Note'}</h2>
         
-        <form onSubmit={manejarSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '300px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <input 
-            type="text" placeholder="Título" value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
+            type="text" placeholder="Title" value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ padding: '8px' }}
           />
           <textarea 
-            placeholder="Contenido" value={contenido}
-            onChange={(e) => setContenido(e.target.value)}
+            placeholder="Content" value={content}
+            onChange={(e) => setContent(e.target.value)}
+            style={{ padding: '8px', minHeight: '80px', resize: 'none' }}
           />
           
-          <button type="submit"
-          style={{ backgroundColor: idEditar ? '#ff9800' : '#4CAF50', color: 'white', padding: '10px', border: 'none', cursor: 'pointer'}}>
-            {idEditar ? 'Actualizar Nota' : 'Crear Nota'}
+          <button type="submit" style={{ backgroundColor: editingId ? '#ff9800' : '#4CAF50', color: 'white', padding: '10px', border: 'none', cursor: 'pointer', borderRadius: '5px' }}>
+            {editingId ? 'Update Note' : 'Create Note'}
           </button>
           
-          {/* Botón para cancelar edición */}
-          {idEditar && (
-            <button type="button" onClick={() => { setIdEditar(null); setTitulo(''); setContenido(''); }}>
-              Cancelar Edición
+          {editingId && (
+            <button type="button" onClick={() => { setEditingId(null); setTitle(''); setContent(''); }} style={{ padding: '5px', cursor: 'pointer' }}>
+              Cancel Edit
             </button>
           )}
         </form>
@@ -120,41 +133,73 @@ function App() {
 
       <hr />
 
-      {/* LISTA DE NOTAS */}
-      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-        {notas.map((nota) => (
-          <div key={nota.id} style={{ border: '1px solid #f0f0f0ff', padding: '15px', borderRadius: '8px', width: '200px', backgroundColor: '#514444ff' }}>
-            
-            {/*  Checkbox  */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-              <input 
-                type="checkbox" 
-                checked={!!nota.isCompleted} // Aseguro que sea booleano
-                onChange={() => toggleCompletado(nota)} 
-                style={{ cursor: 'pointer', transform: 'scale(1.3)' }} 
-              />
+      {/* SEARCH & FILTERS */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input 
+          type="text" 
+          placeholder="🔍 Search notes..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', width: '250px' }}
+        />
+
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {['all', 'pending', 'completed'].map((f) => (
+            <button 
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{ 
+                backgroundColor: filter === f ? '#646cff' : '#444', 
+                color: 'white', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '5px', textTransform: 'capitalize' 
+              }}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* NOTES LIST */}
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', minHeight: '50vh', alignContent: 'flex-start' }}>
+        {filteredNotes.length > 0 ? (
+          filteredNotes.map((note) => (
+            <div key={note.id} style={{ border: '1px solid #f0f0f0ff', padding: '15px', borderRadius: '8px', width: '200px', backgroundColor: '#514444ff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               
-              <h3 style={{ 
-                margin: 0, 
-                // Si está completada, tachamos y bajamos opacidad
-                textDecoration: nota.isCompleted ? 'line-through' : 'none',
-                opacity: nota.isCompleted ? 0.6 : 1,
-                color: 'white' 
-              }}>
-                {nota.title}
-              </h3>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={!!note.isCompleted} 
+                    onChange={() => toggleCompleted(note)} 
+                    style={{ cursor: 'pointer', transform: 'scale(1.3)' }} 
+                  />
+                  <h3 style={{ margin: 0, textDecoration: note.isCompleted ? 'line-through' : 'none', opacity: note.isCompleted ? 0.6 : 1, color: 'white' }}>
+                    {note.title}
+                  </h3>
+                </div>
+                <p style={{ color: '#ddd' }}>{note.content}</p> 
+                
+               <small style={{ display: 'block', marginTop: '10px', color: '#999', fontSize: '12px', fontStyle: 'italic' }}>
+              📅 {new Date(note.createdAt).toLocaleDateString()} 
+              {' '} 
+              {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </small>
+              </div>
+              
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                <button onClick={() => handleEditClick(note)} style={{ backgroundColor: '#2196F3', color: 'white', border: 'none', padding: '5px', cursor: 'pointer', flex: 1, borderRadius: '4px' }}>
+                  Edit ✏️
+                </button>
+                <button onClick={() => handleDelete(note.id)} style={{ backgroundColor: '#f44336', color: 'white', border: 'none', padding: '5px', cursor: 'pointer', flex: 1, borderRadius: '4px' }}>
+                  Delete 🗑️
+                </button>
+              </div>
             </div>
-            <p style={{ color: '#ddd' }}>{nota.content}</p> 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-              <button onClick={() => activarEdicion(nota)} style={{ backgroundColor: '#2196F3', color: 'white', border: 'none', padding: '5px', cursor: 'pointer' }}>
-                Editar ✏️
-              </button>
-              <button onClick={() => borrarNota(nota.id)} style={{ backgroundColor: '#f44336', color: 'white', border: 'none', padding: '5px', cursor: 'pointer' }}>
-                Borrar 🗑️
-              </button>
-            </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p style={{ color: '#aaa', width: '100%', textAlign: 'center' }}>No notes found 🕵️</p>
+        )}
       </div>
     </div>
   );

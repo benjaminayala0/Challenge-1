@@ -7,92 +7,89 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
-app.use(cors()); // Habilita CORS para que el front pueda hablar con el back
+// --- MIDDLEWARES ---
+app.use(cors());
 app.use(express.json());
 
-// Ruta de prueba (Ping)
+// --- ROUTES ---
+
+// 1. Test Route (Ping)
 app.get('/api/ping', (req, res) => {
-    res.json({ message: '¡Pong! El backend está vivo 🚀' });
+    res.json({ message: 'Pong! Backend is running 🚀' });
 });
 
-// Sincronizar la base de datos y luego iniciar el servidor
-sequelize.sync({ alter: true }) // alter:true para actualizar tablas sin perder datos
-    .then(() => {
-        console.log('✅ Base de datos sincronizada');
-        app.listen(PORT, () => {
-            console.log(`Server corriendo en http://localhost:${PORT}`);
-        });
-    })
-    .catch(error => {
-        console.error('❌ Error al conectar la Base de Datos:', error);
- });
-
-// Ruta para CREAR una nota
-app.post('/api/notes', async (req, res) => {
-    try {
-        const { title, content } = req.body; // Recibimos datos del front
-        
-        // Crea y guarda en una línea
-        const newNote = await Note.create({ title, content });
-        
-        res.json(newNote); // Devolvemos la nota creada
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'No se pudo guardar la nota' });
-    }
-});
-
-// Ruta para OBTENER todas las notas
+// 2. GET All Notes
 app.get('/api/notes', async (req, res) => {
     try {
-        // findAll() es el equivalente a "SELECT * FROM Notes"
         const notes = await Note.findAll();
         res.json(notes);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Error al obtener notas' });
+        res.status(500).json({ error: 'Error fetching notes' });
     }
 });
 
-// Ruta para BORRAR una nota por su ID
-// Los dos puntos :id indican que es un dato variable (ej: /api/notes/1, /api/notes/55)
-app.delete('/api/notes/:id', async (req, res) => {
+// 3. POST New Note
+app.post('/api/notes', async (req, res) => {
     try {
-        const { id } = req.params; // Agarramos el ID de la URL
+        const { title, content } = req.body;
         
-        // destroy es la función de Sequelize para borrar
-        await Note.destroy({
-            where: { id: id }
-        });
-        
-        res.sendStatus(204); // 204 significa "No Content" (Borrado ok, no devuelvo nada)
+        // Backend Validation
+        if (!title || !content) {
+            return res.status(400).json({ error: 'Title and content are required' });
+        }
+
+        const newNote = await Note.create({ title, content });
+        res.json(newNote);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'No se pudo borrar la nota' });
+        res.status(500).json({ error: 'Error creating note' });
     }
 });
 
-// Ruta para ACTUALIZAR una nota
+// 4. PUT Update Note (Content or Status)
 app.put('/api/notes/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { title, content, isCompleted } = req.body;
 
-        // update devuelve un array con la cantidad de filas afectadas
         await Note.update(
-            { title, content, isCompleted }, // Datos nuevos
-            { where: { id: id } } // Cuál actualizamos
+            { title, content, isCompleted },
+            { where: { id: id } }
         );
 
-        res.json({ message: 'Actualizado correctamente' });
+        res.json({ message: 'Note updated successfully' });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'No se pudo actualizar' });
+        res.status(500).json({ error: 'Error updating note' });
     }
 });
 
-// Arrancar servidor
-app.listen(PORT, () => {
-    console.log(`Server corriendo en http://localhost:${PORT}`);
+// 5. DELETE Note
+app.delete('/api/notes/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        await Note.destroy({
+            where: { id: id }
+        });
+        
+        res.sendStatus(204); // 204 = No Content
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error deleting note' });
+    }
 });
+
+// --- SERVER START ---
+// Sync Database first, then start server
+sequelize.sync({ alter: true })
+    .then(() => {
+        console.log('✅ Database connected & synchronized');
+        app.listen(PORT, () => {
+            console.log(`🚀 Server running on http://localhost:${PORT}`);
+        });
+    })
+    .catch(error => {
+        console.error('❌ Database connection error:', error);
+    });
