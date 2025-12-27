@@ -13,6 +13,10 @@ const Note = sequelize.define('Note', {
   isArchived: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  isCompleted: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 });
 

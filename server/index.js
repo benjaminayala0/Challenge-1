@@ -17,7 +17,7 @@ app.get('/api/ping', (req, res) => {
 });
 
 // Sincronizar la base de datos y luego iniciar el servidor
-sequelize.sync({ force: false })
+sequelize.sync({ alter: true }) // alter:true para actualizar tablas sin perder datos
     .then(() => {
         console.log('✅ Base de datos sincronizada');
         app.listen(PORT, () => {
@@ -77,11 +77,11 @@ app.delete('/api/notes/:id', async (req, res) => {
 app.put('/api/notes/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, content } = req.body;
+        const { title, content, isCompleted } = req.body;
 
         // update devuelve un array con la cantidad de filas afectadas
         await Note.update(
-            { title, content }, // Datos nuevos
+            { title, content, isCompleted }, // Datos nuevos
             { where: { id: id } } // Cuál actualizamos
         );
 
